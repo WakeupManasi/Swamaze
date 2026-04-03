@@ -113,10 +113,9 @@ Technologies defined in the product specification, to be integrated phase by pha
 
 **⚙️ Backend**
 - FastAPI — async REST + WebSocket API server
-- Redis — shared agent state, pub/sub signal bus, hot cache
-- Celery — async distributed agent task execution with priority queues
+- PYTHON LIBRARIES.
 
-**🧬 AI / ML**
+**🧬 AI**
 - LangChain + OpenAI — agent chain-of-thought reasoning and scenario NLP parsing
 - PyTorch Geometric — GNN model training on graph-structured traffic data
 - ONNX Runtime — production GNN inference without PyTorch dependency
