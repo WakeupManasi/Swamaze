@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SWAMAZE — Multi-Agent Traffic Simulation</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --purple-50:#EEEDFE;--purple-100:#CECBF6;--purple-200:#AFA9EC;--purple-400:#7F77DD;--purple-600:#534AB7;--purple-800:#3C3489;--purple-900:#26215C;
+  --teal-50:#E1F5EE;--teal-200:#5DCAA5;--teal-400:#1D9E75;--teal-600:#0F6E56;
+  --coral-400:#D85A30;--coral-600:#993C1D;
+  --amber-400:#BA7517;--amber-200:#EF9F27;
+  --red-400:#E24B4A;
+  --green-400:#639922;--green-200:#97C459;
+}
+[data-theme="dark"] {
+  --bg: #0d0b1a; --bg2: #12102a; --bg3: #1a1735; --surface: #1e1b38;
+  --border: rgba(127,119,221,0.2); --border2: rgba(127,119,221,0.4);
+  --text: #e8e6ff; --text2: #9b97cc; --text3: #6b67a0;
+  --accent: #7F77DD; --accent2: #AFA9EC; --accent3: #534AB7;
+  --teal: #5DCAA5; --red: #E24B4A; --amber: #EF9F27;
+  --signal-green: #1D9E75; --signal-red: #E24B4A; --signal-amber: #EF9F27;
+  --road: rgba(127,119,221,0.12); --road-border: rgba(127,119,221,0.25);
+}
+[data-theme="light"] {
+  --bg: #f0effe; --bg2: #e8e6ff; --bg3: #dddaff; --surface: #ffffff;
+  --border: rgba(83,74,183,0.15); --border2: rgba(83,74,183,0.3);
+  --text: #26215C; --text2: #534AB7; --text3: #7F77DD;
+  --accent: #534AB7; --accent2: #7F77DD; --accent3: #3C3489;
+  --teal: #0F6E56; --red: #993C1D; --amber: #854F0B;
+  --signal-green: #0F6E56; --signal-red: #993C1D; --signal-amber: #854F0B;
+  --road: rgba(83,74,183,0.06); --road-border: rgba(83,74,183,0.18);
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;cursor:none;}
+body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;transition:background .4s,color .4s;}
+
+/* TRAIN CURSOR */
+#cursor{position:fixed;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);}
+.cursor-train{display:flex;align-items:center;gap:0;}
+.train-car{width:18px;height:10px;border-radius:3px 6px 6px 3px;border:1.5px solid var(--accent);background:var(--bg3);transition:background .3s,border-color .3s;position:relative;}
+.train-car::before{content:'';position:absolute;bottom:-3px;left:3px;width:3px;height:3px;border-radius:50%;background:var(--text3);}
+.train-car::after{content:'';position:absolute;bottom:-3px;right:3px;width:3px;height:3px;border-radius:50%;background:var(--text3);}
+.train-car.front{border-radius:2px 8px 8px 2px;background:var(--accent);width:22px;}
+.train-car.front::before{left:4px;}
+.train-car.front::after{right:4px;}
+.train-connector{width:4px;height:2px;background:var(--text3);}
+.cursor-smoke{width:6px;height:6px;border-radius:50%;background:var(--text3);opacity:0.5;margin-left:2px;animation:smoke 1.2s infinite;}
+@keyframes smoke{0%{opacity:.5;transform:translateY(0) scale(1);}100%{opacity:0;transform:translateY(-8px) scale(1.8);}}
+
+/* LAYOUT */
+#app{display:grid;grid-template-columns:240px 1fr 260px;grid-template-rows:56px 1fr 36px;width:100vw;height:100vh;gap:0;}
+
+/* TOPBAR */
+#topbar{grid-column:1/-1;display:flex;align-items:center;padding:0 20px;gap:16px;border-bottom:1px solid var(--border);background:var(--bg2);z-index:10;}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:20px;letter-spacing:.05em;color:var(--accent);}
+.logo span{color:var(--teal);}
+.topbar-sep{flex:1;}
+.sim-controls{display:flex;gap:8px;align-items:center;}
+.btn{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--text);font-family:'Space Mono',monospace;font-size:11px;cursor:none;transition:all .2s;letter-spacing:.03em;}
+.btn:hover{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn.active{background:var(--accent3);border-color:var(--accent);color:var(--purple-100);}
+.btn.danger:hover{background:var(--red);border-color:var(--red);}
+.btn.teal:hover{background:var(--teal);border-color:var(--teal);}
+.tick-counter{font-size:11px;color:var(--text2);padding:4px 12px;border:1px solid var(--border);border-radius:4px;background:var(--bg);}
+.theme-toggle{width:36px;height:36px;border-radius:50%;border:1px solid var(--border2);background:transparent;cursor:none;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all .2s;}
+.theme-toggle:hover{background:var(--surface);border-color:var(--accent);}
+
+/* LEFT PANEL */
+#left-panel{background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;padding:14px;}
+.panel-title{font-family:'Syne',sans-serif;font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:12px;}
+.agent-list{display:flex;flex-direction:column;gap:6px;}
+.agent-card{padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:none;transition:all .2s;}
+.agent-card:hover,.agent-card.selected{border-color:var(--accent);background:var(--surface);}
+.agent-header{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.agent-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.agent-name{font-size:11px;font-weight:700;flex:1;}
+.agent-type{font-size:9px;color:var(--text3);letter-spacing:.05em;}
+.agent-stats{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:6px;}
+.stat-mini{font-size:9px;color:var(--text3);}
+.stat-mini span{color:var(--text);font-weight:700;}
+.trust-bar{height:2px;background:var(--border);border-radius:1px;margin-top:4px;}
+.trust-fill{height:100%;border-radius:1px;background:var(--teal);transition:width .5s;}
+
+/* CENTER CANVAS */
+#center{position:relative;overflow:hidden;background:var(--bg);}
+#sim-canvas{display:block;width:100%;height:100%;}
+.canvas-overlay{position:absolute;bottom:12px;left:12px;display:flex;gap:8px;flex-wrap:wrap;}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:9px;color:var(--text3);background:var(--bg2);padding:3px 8px;border-radius:4px;border:1px solid var(--border);}
+.legend-dot{width:6px;height:6px;border-radius:50%;}
+
+/* RIGHT PANEL */
+#right-panel{background:var(--bg2);border-left:1px solid var(--border);overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:14px;}
+.info-section{display:flex;flex-direction:column;gap:8px;}
+.reasoning-box{padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);font-size:10px;color:var(--text2);line-height:1.7;min-height:80px;max-height:120px;overflow-y:auto;}
+.trigger-log{display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;}
+.log-entry{display:flex;gap:8px;align-items:flex-start;font-size:9px;padding:4px 6px;border-radius:4px;border-left:2px solid;animation:logIn .3s ease;}
+@keyframes logIn{from{opacity:0;transform:translateX(8px);}to{opacity:1;transform:none;}}
+.log-entry.congestion{border-color:var(--red);background:rgba(226,75,74,0.08);}
+.log-entry.slow{border-color:var(--amber);background:rgba(239,159,39,0.08);}
+.log-entry.clear{border-color:var(--teal);background:rgba(93,202,165,0.08);}
+.log-entry.scout{border-color:var(--accent);background:rgba(127,119,221,0.08);}
+.log-tick{color:var(--text3);flex-shrink:0;min-width:30px;}
+.metrics-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.metric-card{padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);}
+.metric-val{font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:var(--accent);}
+.metric-label{font-size:9px;color:var(--text3);margin-top:2px;}
+
+/* HEATMAP TOGGLE */
+.heatmap-toggle{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;border:1px solid var(--border);cursor:none;}
+.toggle-switch{width:28px;height:14px;border-radius:7px;background:var(--border2);position:relative;cursor:none;transition:background .3s;}
+.toggle-switch.on{background:var(--teal);}
+.toggle-knob{width:10px;height:10px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:left .2s;}
+.toggle-switch.on .toggle-knob{left:16px;}
+.toggle-label{font-size:10px;color:var(--text2);}
+
+/* STATUSBAR */
+#statusbar{grid-column:1/-1;display:flex;align-items:center;padding:0 16px;gap:16px;border-top:1px solid var(--border);background:var(--bg2);font-size:9px;color:var(--text3);}
+.status-item{display:flex;align-items:center;gap:5px;}
+.status-dot{width:5px;height:5px;border-radius:50%;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+/* SIGNAL OVERLAY elements drawn on canvas */
+.speed-badge{position:absolute;top:12px;right:12px;display:flex;gap:6px;}
+.speed-btn{width:28px;height:28px;border-radius:4px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);font-size:10px;display:flex;align-items:center;justify-content:center;cursor:none;transition:all .2s;}
+.speed-btn:hover,.speed-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+/* SCROLLBAR STYLE */
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+
+/* STORM BADGE */
+.event-badge{position:absolute;top:12px;left:50%;transform:translateX(-50%);padding:5px 14px;border-radius:20px;font-size:10px;background:rgba(226,75,74,0.15);border:1px solid var(--red);color:var(--red);display:none;animation:badgePop .3s ease;}
+@keyframes badgePop{from{opacity:0;transform:translateX(-50%) scale(.8);}to{opacity:1;transform:translateX(-50%) scale(1);}}
+.event-badge.show{display:block;}
+
+/* SCENARIO PILLS */
+.scenario-pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
+.pill{padding:3px 10px;border-radius:20px;font-size:9px;border:1px solid var(--border2);color:var(--text2);cursor:none;transition:all .2s;}
+.pill:hover,.pill.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+</style>
+</head>
+<body>
+
+<!-- TRAIN CURSOR -->
+<div id="cursor">
+  <div class="cursor-train">
+    <div class="cursor-smoke"></div>
+    <div class="train-connector"></div>
+    <div class="train-car"></div>
+    <div class="train-connector"></div>
+    <div class="train-car front"></div>
+  </div>
+</div>
+
+<div id="app">
+
+  <!-- TOPBAR -->
+  <div id="topbar">
+    <div class="logo">SWA<span>MAZE</span></div>
+    <div class="scenario-pills" id="scenario-pills">
+      <div class="pill active" data-scenario="city">Dense City</div>
+      <div class="pill" data-scenario="sparse">Sparse Grid</div>
+      <div class="pill" data-scenario="deadend">Dead-End Heavy</div>
+    </div>
+    <div class="topbar-sep"></div>
+    <div class="sim-controls">
+      <div class="tick-counter">TICK <span id="tick-display">0000</span></div>
+      <button class="btn active" id="btn-start" onclick="toggleSim()">▶ RUN</button>
+      <button class="btn" id="btn-step" onclick="stepSim()">⏭ STEP</button>
+      <button class="btn danger" onclick="resetSim()">↺ RESET</button>
+      <button class="btn teal" onclick="triggerStorm()">⚡ STORM</button>
+      <button class="btn" onclick="toggleHeatmap()" id="btn-heatmap">◈ HEATMAP</button>
+    </div>
+    <button class="theme-toggle" id="theme-btn" onclick="toggleTheme()">🌙</button>
+  </div>
+
+  <!-- LEFT PANEL: Agent List -->
+  <div id="left-panel">
+    <div class="panel-title">Agents</div>
+    <div class="agent-list" id="agent-list"></div>
+    <div style="margin-top:14px;">
+      <div class="panel-title">Scenario Speed</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;" id="speed-btns">
+        <div class="speed-btn" onclick="setSpeed(500)">0.5×</div>
+        <div class="speed-btn active" onclick="setSpeed(200)">1×</div>
+        <div class="speed-btn" onclick="setSpeed(100)">2×</div>
+        <div class="speed-btn" onclick="setSpeed(50)">4×</div>
+      </div>
+    </div>
+    <div style="margin-top:14px;">
+      <div class="panel-title">Overlays</div>
+      <div class="heatmap-toggle" onclick="toggleHeatmap()">
+        <div class="toggle-switch" id="heatmap-switch"><div class="toggle-knob"></div></div>
+        <div class="toggle-label">Traffic Heatmap</div>
+      </div>
+      <div class="heatmap-toggle" style="margin-top:6px;" onclick="toggleTrustGraph()">
+        <div class="toggle-switch" id="trust-switch"><div class="toggle-knob"></div></div>
+        <div class="toggle-label">Trust Network</div>
+      </div>
+      <div class="heatmap-toggle" style="margin-top:6px;" onclick="toggleSignals()">
+        <div class="toggle-switch on" id="signals-switch"><div class="toggle-knob"></div></div>
+        <div class="toggle-label">Traffic Signals</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER: Simulation Canvas -->
+  <div id="center">
+    <canvas id="sim-canvas"></canvas>
+    <div class="event-badge" id="event-badge">⚡ STORM ACTIVE</div>
+    <div class="canvas-overlay">
+      <div class="legend-item"><div class="legend-dot" style="background:#7F77DD"></div>Nav Agent</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#5DCAA5"></div>Mapping</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#EF9F27"></div>Scout</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#E24B4A"></div>Congestion</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#AFA9EC"></div>Slow Zone</div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="right-panel">
+    <div class="info-section">
+      <div class="panel-title">Agent Reasoning</div>
+      <div class="reasoning-box" id="reasoning-box">Select an agent to view its live reasoning feed and LLM decisions...</div>
+    </div>
+    <div class="info-section">
+      <div class="panel-title">Live Metrics</div>
+      <div class="metrics-grid">
+        <div class="metric-card"><div class="metric-val" id="m-efficiency">--</div><div class="metric-label">Avg Efficiency</div></div>
+        <div class="metric-card"><div class="metric-val" id="m-conflicts">0</div><div class="metric-label">Conflicts</div></div>
+        <div class="metric-card"><div class="metric-val" id="m-llm">0%</div><div class="metric-label">LLM Invokes</div></div>
+        <div class="metric-card"><div class="metric-val" id="m-exits">0</div><div class="metric-label">Exits Reached</div></div>
+      </div>
+    </div>
+    <div class="info-section">
+      <div class="panel-title">Trigger Log</div>
+      <div class="trigger-log" id="trigger-log"></div>
+    </div>
+  </div>
+
+  <!-- STATUSBAR -->
+  <div id="statusbar">
+    <div class="status-item"><div class="status-dot" style="background:var(--teal)"></div>SIMULATION ENGINE READY</div>
+    <div class="status-item">AGENTS: <span id="sb-agents">0</span></div>
+    <div class="status-item">TRIGGERS: <span id="sb-triggers">0</span></div>
+    <div class="status-item">WS: <span id="sb-ws">CONNECTED</span></div>
+    <div style="flex:1"></div>
+    <div class="status-item">SWAMAZE v1.0 — MULTI-AGENT TRAFFIC SIM</div>
+  </div>
+
+</div>
+
+<script>
+// ─── CURSOR ───────────────────────────────────────────────────
+const cursor = document.getElementById('cursor');
+let cursorAngle = 0, lastX = 0, lastY = 0;
+document.addEventListener('mousemove', e => {
+  const dx = e.clientX - lastX, dy = e.clientY - lastY;
+  if (Math.abs(dx)+Math.abs(dy) > 2) cursorAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+  cursor.style.left = e.clientX + 'px';
+  cursor.style.top = e.clientY + 'px';
+  cursor.style.transform = `translate(-50%,-50%) rotate(${cursorAngle}deg)`;
+  lastX = e.clientX; lastY = e.clientY;
+});
+
+// ─── THEME ────────────────────────────────────────────────────
+let isDark = true;
+function toggleTheme() {
+  isDark = !isDark;
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  document.getElementById('theme-btn').textContent = isDark ? '🌙' : '☀️';
+}
+
+// ─── SIMULATION STATE ─────────────────────────────────────────
+const GRID = 22, CELL = 32;
+let tick = 0, running = false, simInterval = null, speed = 200;
+let showHeatmap = false, showTrust = true, showSignals = true;
+let heatmap = [], grid = [], agents = [], triggers = [], signals = [];
+let selectedAgent = null, conflicts = 0, exits = 0, llmInvokes = 0;
+let stormActive = false, stormTicks = 0;
+let currentScenario = 'city';
+
+// ─── GRID LAYOUTS ─────────────────────────────────────────────
+const SCENARIOS = {
+  city: buildCityGrid,
+  sparse: buildSparseGrid,
+  deadend: buildDeadEndGrid
+};
+
+function buildCityGrid() {
+  const g = Array.from({length:GRID}, () => Array(GRID).fill(0));
+  // Main roads (horizontal)
+  [3,7,11,15,19].forEach(r => { for(let c=0;c<GRID;c++) g[r][c]=1; });
+  // Main roads (vertical)
+  [2,6,10,14,18,21].forEach(c => { for(let r=0;r<GRID;r++) g[r][c]=1; });
+  return g;
+}
+function buildSparseGrid() {
+  const g = Array.from({length:GRID}, () => Array(GRID).fill(0));
+  [5,11,17].forEach(r => { for(let c=0;c<GRID;c++) g[r][c]=1; });
+  [4,10,16].forEach(c => { for(let r=0;r<GRID;r++) g[r][c]=1; });
+  return g;
+}
+function buildDeadEndGrid() {
+  const g = Array.from({length:GRID}, () => Array(GRID).fill(0));
+  [2,5,8,11,14,17,20].forEach(r => {
+    for(let c=0;c<GRID;c++) if(c%4!==0||r%6===2) g[r][c]=1;
+  });
+  [2,6,10,14,18].forEach(c => { for(let r=0;r<GRID;r++) g[r][c]=1; });
+  return g;
+}
+
+// ─── AGENTS ───────────────────────────────────────────────────
+const AGENT_TYPES = [
+  {type:'nav',    color:'#7F77DD', label:'NAV',     count:4},
+  {type:'map',    color:'#5DCAA5', label:'MAP',     count:1},
+  {type:'opt',    color:'#AFA9EC', label:'OPT',     count:1},
+  {type:'scout',  color:'#EF9F27', label:'SCT',     count:2},
+  {type:'mentor', color:'#D85A30', label:'MNT',     count:1},
+];
+
+function spawnAgents() {
+  agents = [];
+  let id = 0;
+  AGENT_TYPES.forEach(at => {
+    for(let i=0;i<at.count;i++) {
+      const roadCells = getRoadCells();
+      const spawn = roadCells[Math.floor(Math.random()*roadCells.length)];
+      const exitCell = roadCells[Math.floor(Math.random()*roadCells.length)];
+      agents.push({
+        id: id++, type: at.type, color: at.color, label: at.label,
+        x: spawn.x + .5, y: spawn.y + .5,
+        gx: spawn.x, gy: spawn.y,
+        ex: exitCell.x, ey: exitCell.y,
+        trust: 0.7 + Math.random()*.3,
+        path: [], pathIdx: 0,
+        status: 'active', reasoning: getInitialReasoning(at.type),
+        vx:0, vy:0, speed: at.type==='scout'?2:1,
+        llmUsed: false, efficiency: 1.0,
+        history: []
+      });
+    }
+  });
+}
+
+function getInitialReasoning(type) {
+  const map = {
+    nav: 'Initializing A* pathfinder. Scanning neighbors for trigger zones...',
+    map: 'Mapping Agent online. Building global explored map from all agent feeds.',
+    opt: 'Optimization Agent: reading annotated map. Calculating optimal weight updates.',
+    scout: 'Scout deployed. Moving at 2× speed to pre-explore target region.',
+    mentor: 'Pathfinder Mentor observing runs. Distilling path patterns to shared memory.'
+  };
+  return map[type] || 'Initializing...';
+}
+
+function getRoadCells() {
+  const cells = [];
+  for(let y=0;y<GRID;y++) for(let x=0;x<GRID;x++) if(grid[y][x]===1) cells.push({x,y});
+  return cells;
+}
+
+// ─── SIGNALS ──────────────────────────────────────────────────
+function buildSignals() {
+  signals = [];
+  const roadRows = [], roadCols = [];
+  for(let r=0;r<GRID;r++) if(grid[r].some(c=>c===1)) roadRows.push(r);
+  for(let c=0;c<GRID;c++) if(grid.some(r=>r[c]===1)) roadCols.push(c);
+  roadRows.forEach(r => roadCols.forEach(c => {
+    if(grid[r][c]===1 && Math.random()>.5) {
+      signals.push({x:c, y:r, phase: Math.floor(Math.random()*3), timer: Math.floor(Math.random()*20)});
+    }
+  }));
+}
+
+// ─── TRIGGERS ─────────────────────────────────────────────────
+function addTrigger(x, y, type) {
+  const existing = triggers.find(t=>t.x===x&&t.y===y);
+  if(existing) { existing.intensity = Math.min(1, existing.intensity+.2); existing.decay=30; return; }
+  triggers.push({x, y, type, intensity:0.6+Math.random()*.4, decay:20+Math.floor(Math.random()*20)});
+  addLog(tick, type, `${type.toUpperCase()} at [${x},${y}]`);
+}
+
+// ─── PATHFINDING (A*) ─────────────────────────────────────────
+function astar(sx,sy,ex,ey) {
+  const key = (x,y) => `${x},${y}`;
+  const open = [{x:sx,y:sy,g:0,f:heur(sx,sy,ex,ey),parent:null}];
+  const closed = new Set();
+  const gCost = {[key(sx,sy)]:0};
+  while(open.length) {
+    open.sort((a,b)=>a.f-b.f);
+    const cur = open.shift();
+    if(cur.x===ex && cur.y===ey) return buildPath(cur);
+    const k = key(cur.x,cur.y);
+    if(closed.has(k)) continue;
+    closed.add(k);
+    for(const [dx,dy] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+      const nx=cur.x+dx,ny=cur.y+dy;
+      if(nx<0||ny<0||nx>=GRID||ny>=GRID||grid[ny][nx]===0) continue;
+      const nk = key(nx,ny);
+      if(closed.has(nk)) continue;
+      const trig = triggers.find(t=>t.x===nx&&t.y===ny);
+      const trigCost = trig ? (trig.type==='congestion'?8:3) : 0;
+      const stormCost = stormActive ? Math.random()*3 : 0;
+      const g = gCost[k]+1+trigCost+stormCost;
+      if(g < (gCost[nk]||Infinity)) {
+        gCost[nk]=g;
+        open.push({x:nx,y:ny,g,f:g+heur(nx,ny,ex,ey),parent:cur});
+      }
+    }
+  }
+  return [];
+}
+function heur(x,y,ex,ey){return Math.abs(x-ex)+Math.abs(y-ey);}
+function buildPath(node) {
+  const p=[]; let n=node;
+  while(n){p.unshift({x:n.x,y:n.y});n=n.parent;}
+  return p;
+}
+
+// ─── TICK UPDATE ──────────────────────────────────────────────
+function simTick() {
+  tick++;
+  document.getElementById('tick-display').textContent = String(tick).padStart(4,'0');
+
+  // Update signals
+  signals.forEach(s => {
+    s.timer--;
+    if(s.timer<=0) { s.phase=(s.phase+1)%3; s.timer=15+Math.floor(Math.random()*10); }
+  });
+
+  // Decay triggers
+  triggers.forEach(t => {
+    t.decay--;
+    t.intensity -= .02;
+  });
+  triggers = triggers.filter(t => t.decay>0 && t.intensity>0);
+
+  // Storm countdown
+  if(stormActive) {
+    stormTicks--;
+    if(stormTicks<=0) { stormActive=false; document.getElementById('event-badge').classList.remove('show'); }
+  }
+
+  // Move agents
+  agents.forEach(agent => {
+    if(agent.status !== 'active') return;
+    if(!agent.path.length || agent.pathIdx >= agent.path.length-1) {
+      agent.path = astar(agent.gx, agent.gy, agent.ex, agent.ey);
+      agent.pathIdx = 0;
+      // Occasionally invoke "LLM"
+      if(Math.random()<.08) { agent.llmUsed=true; llmInvokes++; updateReasoning(agent); }
+    }
+    if(agent.path.length && agent.pathIdx < agent.path.length-1) {
+      agent.pathIdx++;
+      const target = agent.path[agent.pathIdx];
+      agent.gx = target.x; agent.gy = target.y;
+      const speed = agent.type==='scout'?2:1;
+      agent.x += (target.x+.5 - agent.x) * .3 * speed;
+      agent.y += (target.y+.5 - agent.y) * .3 * speed;
+      agent.history.push({x:agent.x,y:agent.y});
+      if(agent.history.length>20) agent.history.shift();
+      heatmap[target.y][target.x] = Math.min(1, (heatmap[target.y][target.x]||0)+.05);
+      // Check if near congested signal
+      const sig = signals.find(s=>s.x===target.x&&s.y===target.y&&s.phase===0);
+      if(sig) { agent.reasoning = `[WAIT] Red signal at [${target.x},${target.y}]. Recalculating...`; }
+    }
+
+    // Reached exit?
+    if(agent.gx===agent.ex && agent.gy===agent.ey) {
+      exits++; agent.efficiency = Math.min(1, agent.efficiency+.05);
+      // Reassign exit
+      const rc = getRoadCells();
+      const ne = rc[Math.floor(Math.random()*rc.length)];
+      agent.ex=ne.x; agent.ey=ne.y;
+      agent.path=[];
+    }
+
+    // Random triggers
+    if(Math.random()<.012) addTrigger(agent.gx, agent.gy, Math.random()<.5?'congestion':'slow');
+    // Scout reports
+    if(agent.type==='scout' && Math.random()<.05) addLog(tick,'scout',`Scout report: region [${agent.gx},${agent.gy}] explored`);
+  });
+
+  // Conflict detection
+  for(let i=0;i<agents.length;i++) for(let j=i+1;j<agents.length;j++) {
+    if(Math.abs(agents[i].gx-agents[j].gx)<1 && Math.abs(agents[i].gy-agents[j].gy)<1) {
+      conflicts++;
+      if(Math.random()<.3) { agents[i].trust=Math.max(.1,agents[i].trust-.05); agents[j].trust=Math.max(.1,agents[j].trust-.05); }
+    }
+  }
+
+  // Update UI
+  updateMetrics();
+  updateAgentList();
+  if(selectedAgent!==null) showReasoning(agents[selectedAgent]);
+  document.getElementById('sb-agents').textContent = agents.length;
+  document.getElementById('sb-triggers').textContent = triggers.length;
+  draw();
+}
+
+function updateReasoning(agent) {
+  const msgs = [
+    `[LLM] Path delta <15%. Querying GPT-4o for ambiguous route. Confidence: ${(agent.trust*100).toFixed(0)}%`,
+    `[LLM] Congestion detected. Re-routing via corridor [${agent.gx+2},${agent.gy}]. Trust: ${(agent.trust*100).toFixed(0)}%`,
+    `[LLM] Checking Pathfinder Mentor hints. Advisory path accepted. Efficiency: ${(agent.efficiency*100).toFixed(0)}%`,
+    `[A*] Standard pathfinding. No LLM needed. Path cost: ${agent.path.length}.`,
+    `[CONFLICT] Adjacent agent detected. Backing off. Re-planning in 2 ticks.`,
+    `[SCOUT] Pre-exploration complete. Region marked. Handing off to Navigation Agent.`
+  ];
+  agent.reasoning = msgs[Math.floor(Math.random()*msgs.length)];
+}
+
+function updateMetrics() {
+  const avgEff = agents.length ? (agents.reduce((a,b)=>a+b.efficiency,0)/agents.length*100).toFixed(0)+'%' : '--';
+  document.getElementById('m-efficiency').textContent = avgEff;
+  document.getElementById('m-conflicts').textContent = conflicts;
+  document.getElementById('m-llm').textContent = tick ? (llmInvokes/tick*100).toFixed(1)+'%' : '0%';
+  document.getElementById('m-exits').textContent = exits;
+}
+
+function updateAgentList() {
+  const list = document.getElementById('agent-list');
+  list.innerHTML = agents.map((a,i) => `
+    <div class="agent-card ${selectedAgent===i?'selected':''}" onclick="selectAgent(${i})">
+      <div class="agent-header">
+        <div class="agent-dot" style="background:${a.color}"></div>
+        <div class="agent-name">${a.label}-${String(a.id).padStart(2,'0')}</div>
+        <div class="agent-type">${a.type.toUpperCase()}</div>
+      </div>
+      <div class="agent-stats">
+        <div class="stat-mini">POS <span>[${a.gx},${a.gy}]</span></div>
+        <div class="stat-mini">EFF <span>${(a.efficiency*100).toFixed(0)}%</span></div>
+      </div>
+      <div class="trust-bar"><div class="trust-fill" style="width:${a.trust*100}%"></div></div>
+    </div>
+  `).join('');
+}
+
+function selectAgent(i) {
+  selectedAgent = i;
+  showReasoning(agents[i]);
+  updateAgentList();
+}
+function showReasoning(a) {
+  document.getElementById('reasoning-box').textContent = `[${a.label}-${a.id}] ${a.reasoning}`;
+}
+
+// ─── DRAWING ──────────────────────────────────────────────────
+const canvas = document.getElementById('sim-canvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const c = document.getElementById('center');
+  canvas.width = c.clientWidth;
+  canvas.height = c.clientHeight;
+}
+
+function draw() {
+  const W = canvas.width, H = canvas.height;
+  const offsetX = (W - GRID*CELL)/2, offsetY = (H - GRID*CELL)/2;
+  const theme = document.documentElement.getAttribute('data-theme');
+  ctx.clearRect(0,0,W,H);
+
+  // Background
+  ctx.fillStyle = theme==='dark'?'#0d0b1a':'#f0effe';
+  ctx.fillRect(0,0,W,H);
+
+  // Grid dots
+  for(let y=0;y<=GRID;y++) for(let x=0;x<=GRID;x++) {
+    ctx.beginPath();
+    ctx.arc(offsetX+x*CELL, offsetY+y*CELL, 1, 0, Math.PI*2);
+    ctx.fillStyle = theme==='dark'?'rgba(127,119,221,0.15)':'rgba(83,74,183,0.12)';
+    ctx.fill();
+  }
+
+  // Heatmap
+  if(showHeatmap) {
+    for(let y=0;y<GRID;y++) for(let x=0;x<GRID;x++) {
+      const v = heatmap[y][x]||0;
+      if(v<.01) continue;
+      const r = Math.round(v*220), b = Math.round((1-v)*200);
+      ctx.fillStyle = `rgba(${r},60,${b},${v*.6})`;
+      ctx.fillRect(offsetX+x*CELL, offsetY+y*CELL, CELL, CELL);
+    }
+  }
+
+  // Roads
+  for(let y=0;y<GRID;y++) for(let x=0;x<GRID;x++) {
+    if(grid[y][x]===0) continue;
+    const px=offsetX+x*CELL, py=offsetY+y*CELL;
+    ctx.fillStyle = theme==='dark'?'rgba(127,119,221,0.1)':'rgba(83,74,183,0.07)';
+    ctx.fillRect(px,py,CELL,CELL);
+    // Road markings
+    const hasRight = x+1<GRID && grid[y][x+1]===1;
+    const hasDown  = y+1<GRID && grid[y+1][x]===1;
+    ctx.strokeStyle = theme==='dark'?'rgba(127,119,221,0.3)':'rgba(83,74,183,0.2)';
+    ctx.lineWidth=1;
+    if(hasRight){ctx.beginPath();ctx.moveTo(px+CELL/2,py+CELL/2);ctx.lineTo(px+CELL+CELL/2,py+CELL/2);ctx.stroke();}
+    if(hasDown){ctx.beginPath();ctx.moveTo(px+CELL/2,py+CELL/2);ctx.lineTo(px+CELL/2,py+CELL+CELL/2);ctx.stroke();}
+    // Lane dashes
+    ctx.setLineDash([3,5]);
+    ctx.strokeStyle = theme==='dark'?'rgba(127,119,221,0.15)':'rgba(83,74,183,0.12)';
+    ctx.lineWidth=.5;
+    if(hasRight){ctx.beginPath();ctx.moveTo(px+CELL*.2,py+CELL/2);ctx.lineTo(px+CELL*.8,py+CELL/2);ctx.stroke();}
+    if(hasDown){ctx.beginPath();ctx.moveTo(px+CELL/2,py+CELL*.2);ctx.lineTo(px+CELL/2,py+CELL*.8);ctx.stroke();}
+    ctx.setLineDash([]);
+  }
+
+  // Triggers
+  triggers.forEach(t => {
+    const px=offsetX+t.x*CELL, py=offsetY+t.y*CELL;
+    const alpha = t.intensity*.4;
+    ctx.fillStyle = t.type==='congestion'?`rgba(226,75,74,${alpha})`:`rgba(239,159,39,${alpha})`;
+    ctx.fillRect(px,py,CELL,CELL);
+    // Pulse ring
+    ctx.strokeStyle = t.type==='congestion'?`rgba(226,75,74,${alpha*.7})`:`rgba(239,159,39,${alpha*.7})`;
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.roundRect(px+2,py+2,CELL-4,CELL-4,4);
+    ctx.stroke();
+  });
+
+  // Signals
+  if(showSignals) {
+    signals.forEach(s => {
+      const px=offsetX+s.x*CELL+CELL-8, py=offsetY+s.y*CELL+2;
+      const colors = ['#E24B4A','#EF9F27','#1D9E75'];
+      ctx.fillStyle = '#12102a';
+      ctx.fillRect(px-2,py-2,10,10);
+      ctx.beginPath();
+      ctx.arc(px+3,py+3,3,0,Math.PI*2);
+      ctx.fillStyle = colors[s.phase];
+      ctx.fill();
+      // Glow
+      ctx.beginPath();
+      ctx.arc(px+3,py+3,5,0,Math.PI*2);
+      ctx.fillStyle = colors[s.phase].replace(')',',0.2)').replace('rgb','rgba');
+      ctx.fill();
+    });
+  }
+
+  // Agent trails
+  agents.forEach(agent => {
+    if(agent.history.length<2) return;
+    ctx.beginPath();
+    ctx.moveTo(offsetX+agent.history[0].x*CELL, offsetY+agent.history[0].y*CELL);
+    agent.history.forEach(p => ctx.lineTo(offsetX+p.x*CELL, offsetY+p.y*CELL));
+    ctx.strokeStyle = agent.color.replace('#','rgba(').split('').join('') + '40';
+    ctx.strokeStyle = agent.color + '33';
+    ctx.lineWidth=1.5;
+    ctx.setLineDash([2,4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // Agents
+  agents.forEach((agent,i) => {
+    const px = offsetX + agent.x*CELL, py = offsetY + agent.y*CELL;
+    const r = agent.type==='opt'?10:8;
+    // Shadow
+    ctx.beginPath();
+    ctx.arc(px,py,r+2,0,Math.PI*2);
+    ctx.fillStyle = agent.color+'22';
+    ctx.fill();
+    // Body
+    ctx.beginPath();
+    ctx.arc(px,py,r,0,Math.PI*2);
+    ctx.fillStyle = agent.color;
+    ctx.fill();
+    // Selected ring
+    if(selectedAgent===i) {
+      ctx.beginPath();
+      ctx.arc(px,py,r+3,0,Math.PI*2);
+      ctx.strokeStyle=agent.color;
+      ctx.lineWidth=1.5;
+      ctx.stroke();
+    }
+    // Label
+    ctx.fillStyle='#fff';
+    ctx.font='bold 7px Space Mono,monospace';
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillText(agent.label,px,py);
+
+    // Exit marker
+    ctx.beginPath();
+    ctx.arc(offsetX+agent.ex*CELL+CELL/2, offsetY+agent.ey*CELL+CELL/2, 4,0,Math.PI*2);
+    ctx.strokeStyle=agent.color+'88';
+    ctx.lineWidth=1;
+    ctx.stroke();
+  });
+
+  // Trust graph overlay
+  if(showTrust) {
+    agents.forEach((a,i) => {
+      agents.forEach((b,j) => {
+        if(j<=i) return;
+        const dist = Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2);
+        if(dist > 6) return;
+        const alpha = Math.min(a.trust,b.trust)*.3;
+        ctx.beginPath();
+        ctx.moveTo(offsetX+a.x*CELL, offsetY+a.y*CELL);
+        ctx.lineTo(offsetX+b.x*CELL, offsetY+b.y*CELL);
+        ctx.strokeStyle=`rgba(127,119,221,${alpha})`;
+        ctx.lineWidth=.5;
+        ctx.stroke();
+      });
+    });
+  }
+}
+
+// ─── CONTROLS ─────────────────────────────────────────────────
+function toggleSim() {
+  running = !running;
+  const btn = document.getElementById('btn-start');
+  if(running) {
+    simInterval = setInterval(simTick, speed);
+    btn.textContent = '⏸ PAUSE'; btn.classList.add('active');
+  } else {
+    clearInterval(simInterval);
+    btn.textContent = '▶ RUN'; btn.classList.remove('active');
+  }
+}
+function stepSim() { if(!running) simTick(); }
+function resetSim() {
+  clearInterval(simInterval); running=false;
+  tick=0; conflicts=0; exits=0; llmInvokes=0;
+  triggers=[]; stormActive=false;
+  document.getElementById('btn-start').textContent='▶ RUN';
+  document.getElementById('btn-start').classList.remove('active');
+  document.getElementById('event-badge').classList.remove('show');
+  heatmap = Array.from({length:GRID},()=>Array(GRID).fill(0));
+  grid = SCENARIOS[currentScenario]();
+  spawnAgents(); buildSignals();
+  updateAgentList(); updateMetrics(); draw();
+}
+function setSpeed(ms) {
+  speed=ms;
+  document.querySelectorAll('.speed-btn').forEach(b=>b.classList.remove('active'));
+  event.target.classList.add('active');
+  if(running) { clearInterval(simInterval); simInterval=setInterval(simTick,speed); }
+}
+function toggleHeatmap() {
+  showHeatmap=!showHeatmap;
+  const sw=document.getElementById('heatmap-switch');
+  sw.classList.toggle('on',showHeatmap);
+}
+function toggleTrustGraph() {
+  showTrust=!showTrust;
+  const sw=document.getElementById('trust-switch');
+  sw.classList.toggle('on',showTrust);
+}
+function toggleSignals() {
+  showSignals=!showSignals;
+  const sw=document.getElementById('signals-switch');
+  sw.classList.toggle('on',showSignals);
+}
+function triggerStorm() {
+  stormActive=true; stormTicks=60;
+  document.getElementById('event-badge').classList.add('show');
+  addLog(tick,'congestion','⚡ STORM EVENT: traversal costs +300% for 60 ticks');
+  // Random road closures
+  const rc = getRoadCells();
+  for(let i=0;i<5;i++) {
+    const c = rc[Math.floor(Math.random()*rc.length)];
+    addTrigger(c.x,c.y,'congestion');
+  }
+}
+
+// ─── SCENARIO PILLS ───────────────────────────────────────────
+document.getElementById('scenario-pills').addEventListener('click', e => {
+  const pill = e.target.closest('.pill');
+  if(!pill) return;
+  document.querySelectorAll('.pill').forEach(p=>p.classList.remove('active'));
+  pill.classList.add('active');
+  currentScenario = pill.dataset.scenario;
+  resetSim();
+});
+
+// ─── TRIGGER LOG ──────────────────────────────────────────────
+function addLog(tick, type, msg) {
+  const log = document.getElementById('trigger-log');
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${type}`;
+  entry.innerHTML = `<span class="log-tick">T${tick}</span><span>${msg}</span>`;
+  log.prepend(entry);
+  if(log.children.length > 50) log.lastChild.remove();
+}
+
+// ─── CANVAS CLICK → SELECT AGENT ─────────────────────────────
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const cx = e.clientX-rect.left, cy = e.clientY-rect.top;
+  const offsetX = (canvas.width-GRID*CELL)/2, offsetY = (canvas.height-GRID*CELL)/2;
+  const gx = Math.floor((cx-offsetX)/CELL), gy = Math.floor((cy-offsetY)/CELL);
+  const hit = agents.findIndex(a=>a.gx===gx&&a.gy===gy);
+  if(hit>=0) selectAgent(hit);
+});
+
+// ─── INIT ─────────────────────────────────────────────────────
+window.addEventListener('resize', () => { resizeCanvas(); draw(); });
+resizeCanvas();
+heatmap = Array.from({length:GRID},()=>Array(GRID).fill(0));
+grid = SCENARIOS[currentScenario]();
+spawnAgents();
+buildSignals();
+updateAgentList();
+updateMetrics();
+draw();
+
+// Auto-start after short delay
+setTimeout(() => { toggleSim(); }, 600);
+</script>
+</body>
+</html>
