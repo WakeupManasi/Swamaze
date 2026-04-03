@@ -1,4 +1,4 @@
-# 🐝 SWAMAZE
+#  SWAMAZE
 
 ### Swarm Intelligence + Maze Optimization Platform
 
@@ -9,7 +9,7 @@ SWAMAZE is a decentralized multi-agent AI platform built to simulate, model, and
 
 ---
 
-## The PROMBLEM
+## The PROBLEM
 
 Urban traffic infrastructure is failing — quietly, expensively, and at scale.
 
